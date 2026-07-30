@@ -1,0 +1,95 @@
+services:
+  egress:
+    build:
+      context: .codex-container
+      target: egress
+    cap_drop:
+      - ALL
+    cpus: 0.5
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "squid -k parse >/dev/null 2>&1 && exec 3<>/dev/tcp/127.0.0.1/3128"
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    mem_limit: 256m
+    networks:
+      - codex_internal
+      - internet
+    pids_limit: 128
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: "1"
+      net.ipv6.conf.default.disable_ipv6: "1"
+    tmpfs:
+      - /run:rw,nosuid,nodev,noexec,size=16m,mode=0750,uid=13,gid=13
+      - /var/log/squid:rw,nosuid,nodev,noexec,size=32m,mode=0750,uid=13,gid=13
+      - /var/spool/squid:rw,nosuid,nodev,noexec,size=32m,mode=0750,uid=13,gid=13
+
+  codex:
+    build:
+      args:
+        CODEX_HOST_GID: ${CODEX_HOST_GID:-1000}
+        CODEX_HOST_UID: ${CODEX_HOST_UID:-1000}
+        CODEX_VERSION: ${CODEX_VERSION:-0.146.0}
+      context: .codex-container
+      target: codex
+    cap_drop:
+      - ALL
+    cpus: 2.0
+    depends_on:
+      egress:
+        condition: service_healthy
+    dns:
+      - 127.0.0.1
+    environment:
+      ALL_PROXY: http://egress:3128
+      HTTP_PROXY: http://egress:3128
+      HTTPS_PROXY: http://egress:3128
+      NO_PROXY: ""
+      all_proxy: http://egress:3128
+      http_proxy: http://egress:3128
+      https_proxy: http://egress:3128
+      no_proxy: ""
+    init: true
+    mem_limit: 2g
+    networks:
+      - codex_internal
+    pids_limit: 512
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: "1"
+      net.ipv6.conf.default.disable_ipv6: "1"
+    stdin_open: true
+    tty: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    volumes:
+      - type: bind
+        source: ${CODEX_WORKSPACE:?Set CODEX_WORKSPACE to the absolute workspace path}
+        target: /workspace
+      - type: volume
+        source: codex_home
+        target: /codex-home
+    working_dir: /workspace
+
+networks:
+  codex_internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: isolated
+    enable_ipv6: false
+    internal: true
+  internet:
+    enable_ipv6: false
+
+volumes:
+  codex_home:

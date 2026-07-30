@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Check tracked files
+        run: |
+          test ! -e bugs.md
+          test ! -e codex-cli-docker-bookstack.html
+          test ! -e codex-cli-docker-sandbox.zip
+
+      - name: Check shell
+        run: |
+          sh -n codex-docker.sh
+          shellcheck --exclude=SC2016 codex-docker.sh
+
+      - name: Check Compose
+        env:
+          CODEX_HOST_GID: "1000"
+          CODEX_HOST_UID: "1000"
+          CODEX_WORKSPACE: /tmp/codex-workspace
+          COMPOSE_PROJECT_NAME: codex-check
+        run: docker compose --project-directory . -f .codex-container/compose.yaml config --quiet
+
+      - name: Build and probe the boundary
+        run: |
+          workspace_path="$RUNNER_TEMP/codex-workspace"
+          mkdir "$workspace_path"
+          cd "$workspace_path"
+          "$GITHUB_WORKSPACE/codex-docker.sh" build
+          "$GITHUB_WORKSPACE/codex-docker.sh" check
+          "$GITHUB_WORKSPACE/codex-docker.sh" --version
+          "$GITHUB_WORKSPACE/codex-docker.sh" stop
+
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Parse PowerShell launcher
+        shell: pwsh
+        run: |
+          $Tokens = $null
+          $ParseErrors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path .\codex-docker.ps1),
+              [ref]$Tokens,
+              [ref]$ParseErrors
+          )
+          if ($ParseErrors.Count -gt 0) {
+              $ParseErrors | Format-List
+              exit 1
+          }
