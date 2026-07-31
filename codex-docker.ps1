@@ -91,7 +91,10 @@ function Assert-SafeWorkspace {
 function Get-WorkspaceHash {
     $Sha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
-        $WorkspaceBytes = [System.Text.Encoding]::UTF8.GetBytes($WorkspacePath)
+        # Windows paths are case-insensitive, but PowerShell keeps the casing the user
+        # typed. Normalize so the same directory always maps to the same Compose project
+        # and its persistent Codex home volume.
+        $WorkspaceBytes = [System.Text.Encoding]::UTF8.GetBytes($WorkspacePath.ToLowerInvariant())
         $HashBytes = $Sha256.ComputeHash($WorkspaceBytes)
     }
     finally {
