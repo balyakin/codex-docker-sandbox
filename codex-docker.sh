@@ -26,6 +26,51 @@ get_workspace_hash() (
     printf '%.16s' "$workspace_hash"
 )
 
+get_unsafe_workspace_symlinks() {
+    find "$CODEX_WORKSPACE" -type l -exec sh -c '
+        workspace_path=$1
+        shift
+        for symlink_path do
+            symlink_target=$(readlink "$symlink_path") || {
+                printf "%s\n" "$symlink_path"
+                continue
+            }
+            case "$symlink_target" in
+                /*)
+                    target_path=$symlink_target
+                    ;;
+                *)
+                    symlink_parent=$(dirname -- "$symlink_path")
+                    target_path=$symlink_parent/$symlink_target
+                    ;;
+            esac
+            if test -d "$target_path"; then
+                resolved_target=$(CDPATH="" cd -- "$target_path" 2>/dev/null && pwd -P) || {
+                    printf "%s\n" "$symlink_path"
+                    continue
+                }
+            else
+                target_parent=$(CDPATH="" cd -- "$(dirname -- "$target_path")" 2>/dev/null && pwd -P) || {
+                    printf "%s\n" "$symlink_path"
+                    continue
+                }
+                target_name=$(basename -- "$target_path")
+                case "$target_name" in
+                    .|..)
+                        printf "%s\n" "$symlink_path"
+                        continue
+                        ;;
+                esac
+                resolved_target=$target_parent/$target_name
+            fi
+            case "$resolved_target/" in
+                "$workspace_path/"*) ;;
+                *) printf "%s\n" "$symlink_path" ;;
+            esac
+        done
+    ' sh "$CODEX_WORKSPACE" {} +
+}
+
 validate_workspace() {
     case "$CODEX_WORKSPACE" in
         /|/Applications|/Applications/*|/bin|/bin/*|/boot|/boot/*|/dev|/dev/*|/etc|/etc/*|/lib|/lib/*|\
@@ -58,12 +103,20 @@ validate_workspace() {
     if test "${1:-}" = skip-content; then
         return
     fi
-    workspace_hazards=$(find "$CODEX_WORKSPACE" \( -type l -o -type s -o -name docker.sock \) -print 2>/dev/null) || {
-        echo "Unable to inspect the workspace for symlinks and sockets" >&2
+    workspace_symlink_hazards=$(get_unsafe_workspace_symlinks) || {
+        echo "Unable to inspect workspace symlinks" >&2
+        exit 1
+    }
+    if test -n "$workspace_symlink_hazards"; then
+        echo "Refusing a workspace that contains a symlink outside the workspace: $workspace_symlink_hazards" >&2
+        exit 1
+    fi
+    workspace_hazards=$(find "$CODEX_WORKSPACE" \( -type s -o -name docker.sock \) -print 2>/dev/null) || {
+        echo "Unable to inspect the workspace for sockets" >&2
         exit 1
     }
     if test -n "$workspace_hazards"; then
-        echo "Refusing a workspace that contains a symlink or socket: $workspace_hazards" >&2
+        echo "Refusing a workspace that contains a socket or docker.sock: $workspace_hazards" >&2
         exit 1
     fi
 }

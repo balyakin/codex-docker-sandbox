@@ -18,7 +18,8 @@ Run the static checks first:
 
 ```bash
 sh -n codex-docker.sh
-shellcheck --exclude=SC2016 codex-docker.sh
+shellcheck --exclude=SC2016 codex-docker.sh tests/test-workspace-symlinks.sh
+sh tests/test-workspace-symlinks.sh
 CODEX_HOST_UID=1000 \
 CODEX_HOST_GID=1000 \
 CODEX_WORKSPACE=/tmp/codex-workspace \
@@ -47,6 +48,7 @@ if ($ParseErrors.Count -gt 0) {
     $ParseErrors | Format-List
     exit 1
 }
+.\tests\test-workspace-symlinks.ps1
 ```
 
 ## Expectations

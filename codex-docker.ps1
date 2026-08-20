@@ -31,6 +31,35 @@ function Test-PathWithin {
     return $PathsEqual -or $PathInsideRoot
 }
 
+function Assert-SafeWorkspaceLinks {
+    param(
+        [string]$Root
+    )
+
+    $WorkspaceLinks = Get-ChildItem -LiteralPath $Root -Force -Recurse -Attributes ReparsePoint
+    foreach ($WorkspaceLink in $WorkspaceLinks) {
+        if ($WorkspaceLink.LinkType -ne "SymbolicLink") {
+            throw "Refusing an unsupported reparse point: $($WorkspaceLink.FullName)"
+        }
+        $LinkTargets = @($WorkspaceLink.Target)
+        if ($LinkTargets.Count -ne 1 -or -not $LinkTargets[0]) {
+            throw "Unable to resolve workspace symbolic link: $($WorkspaceLink.FullName)"
+        }
+        $LinkTarget = [string]$LinkTargets[0]
+        if ([System.IO.Path]::IsPathRooted($LinkTarget)) {
+            $TargetPath = $LinkTarget
+        }
+        else {
+            $LinkParent = Split-Path -Parent $WorkspaceLink.FullName
+            $TargetPath = Join-Path $LinkParent $LinkTarget
+        }
+        $TargetPath = [System.IO.Path]::GetFullPath($TargetPath)
+        if (-not (Test-PathWithin -Path $TargetPath -Root $Root)) {
+            throw "Refusing a workspace symbolic link outside the workspace: $($WorkspaceLink.FullName)"
+        }
+    }
+}
+
 function Assert-SafeWorkspace {
     param(
         [switch]$SkipContentScan
@@ -76,11 +105,7 @@ function Assert-SafeWorkspace {
     if ($SkipContentScan) {
         return
     }
-    $WorkspaceReparsePoint = Get-ChildItem -LiteralPath $WorkspacePath -Force -Recurse -Attributes ReparsePoint |
-        Select-Object -First 1
-    if ($WorkspaceReparsePoint) {
-        throw "Refusing a workspace that contains a reparse point: $($WorkspaceReparsePoint.FullName)"
-    }
+    Assert-SafeWorkspaceLinks -Root $WorkspacePath
     $WorkspaceSocket = Get-ChildItem -LiteralPath $WorkspacePath -Filter "docker.sock" -Force -Recurse |
         Select-Object -First 1
     if ($WorkspaceSocket) {

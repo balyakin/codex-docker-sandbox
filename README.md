@@ -40,10 +40,11 @@ Community project. Independent. Not affiliated with or endorsed by OpenAI.
 - CLI arguments that could replace the fixed workspace or security policy are rejected before Docker starts.
 
 The launcher is picky about the workspace as well. Disk roots get turned away. So do home and system directories, the
-bundle itself, symbolic links, sockets, reparse points, and anything named `docker.sock`.
+bundle itself, sockets, unsupported reparse points, anything named `docker.sock`, and symbolic links that leave the
+workspace.
 
-Strict is the point. A `node_modules` forest stuffed with symlinks will bounce you; clean the checkout first, or yank
-that generated tree before you launch.
+Symbolic links whose targets stay inside the workspace are allowed. Links that escape it are refused before Docker
+starts.
 
 ## Security Boundary
 
@@ -146,7 +147,7 @@ The key is piped into `codex login --with-api-key`. It never lands in `compose.y
 | `codex-docker run ARGS...` | Start Codex and pass safe CLI arguments |
 | `codex-docker login` | Sign in with a ChatGPT device code |
 | `codex-docker api-login` | Read `OPENAI_API_KEY` and store API authentication |
-| `codex-docker build [VERSION]` | Build the images; defaults to Codex CLI `0.147.0` |
+| `codex-docker build [VERSION]` | Build the images; defaults to Codex CLI `0.148.0` |
 | `codex-docker check` | Probe the network and filesystem boundary |
 | `codex-docker status` | Show this workspace's Compose services |
 | `codex-docker stop` | Stop the egress sidecar without deleting authentication |
@@ -282,6 +283,9 @@ Need a harder kernel edge? Reach for a VM, gVisor, Kata Containers, or a machine
 ├── Dockerfile
 ├── compose.yaml
 └── squid.conf
+tests/
+├── test-workspace-symlinks.ps1
+└── test-workspace-symlinks.sh
 codex-docker.sh
 codex-docker.ps1
 ```
@@ -305,7 +309,7 @@ MIT. See [LICENSE](LICENSE).
 This project was developed with AI assistance and is maintained by the author.
 
 [badge-ci]: https://github.com/balyakin/codex-docker-sandbox/actions/workflows/ci.yml/badge.svg
-[badge-codex]: https://img.shields.io/badge/Codex%20CLI-0.147.0-111827
+[badge-codex]: https://img.shields.io/badge/Codex%20CLI-0.148.0-111827
 [badge-docker]: https://img.shields.io/badge/Docker%20Engine-28%2B-2496ED?logo=docker&logoColor=white
 [badge-platforms]: https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue
 [badge-network]: https://img.shields.io/badge/egress-allowlist-brightgreen

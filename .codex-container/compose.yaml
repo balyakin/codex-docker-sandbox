@@ -37,7 +37,7 @@ services:
       args:
         CODEX_HOST_GID: ${CODEX_HOST_GID:-1000}
         CODEX_HOST_UID: ${CODEX_HOST_UID:-1000}
-        CODEX_VERSION: ${CODEX_VERSION:-0.147.0}
+        CODEX_VERSION: ${CODEX_VERSION:-0.148.0}
       context: .codex-container
       target: codex
     cap_drop:

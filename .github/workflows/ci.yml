@@ -23,7 +23,8 @@ jobs:
       - name: Check shell
         run: |
           sh -n codex-docker.sh
-          shellcheck --exclude=SC2016 codex-docker.sh
+          shellcheck --exclude=SC2016 codex-docker.sh tests/test-workspace-symlinks.sh
+          sh tests/test-workspace-symlinks.sh
 
       - name: Check Compose
         env:
@@ -62,3 +63,7 @@ jobs:
               $ParseErrors | Format-List
               exit 1
           }
+
+      - name: Check workspace symlinks
+        shell: pwsh
+        run: .\tests\test-workspace-symlinks.ps1
